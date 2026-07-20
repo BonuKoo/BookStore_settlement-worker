@@ -25,6 +25,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SettlementService {
 
+    // 판매자가 지정되지 않은 상품(core-spa Item.UNASSIGNED_SELLER_ID)과 동일한 값 —
+    // 프로듀서가 sellerId를 못 채워 보낸 메시지(구버전 데이터 등)도 크래시 대신 이 판매자로 정산한다.
+    private static final long UNASSIGNED_SELLER_ID = 0L;
+
     private final SellerWalletCreditor sellerWalletCreditor;
 
     public WalletCompletedMessage settle(PaymentEventMessage message) {
@@ -53,10 +57,14 @@ public class SettlementService {
         }
 
         return items.stream().collect(Collectors.groupingBy(
-                item -> ((Number) item.get("sellerId")).longValue(),
+                item -> toSellerId(item.get("sellerId")),
                 Collectors.reducing(BigDecimal.ZERO,
                         item -> toBigDecimal(item.get("amount")),
                         BigDecimal::add)));
+    }
+
+    private Long toSellerId(Object sellerId) {
+        return sellerId instanceof Number number ? number.longValue() : UNASSIGNED_SELLER_ID;
     }
 
     private BigDecimal toBigDecimal(Object amount) {
